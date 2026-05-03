@@ -10,7 +10,7 @@ PORT = int(os.environ.get("PORT", 8080))
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
 
 # Upgraded to the current supported model
-MODEL_NAME = "claude-3-5-haiku-latest" 
+MODEL_NAME = "claude-3-haiku-20240307"
 
 ALLOWED_ORIGINS = [
     "http://localhost:8788",
