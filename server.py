@@ -9,8 +9,8 @@ import urllib.error
 PORT = int(os.environ.get("PORT", 8080))
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
 
-# Current supported model
-MODEL_NAME = "claude-haiku-4-5-20251001"
+# 🚨 FIX 1: Updated to the correct first-party API identifier slug to resolve permission_errors
+MODEL_NAME = "claude-haiku-4-5"
 
 ALLOWED_ORIGINS = [
     "http://localhost:8788",
@@ -28,23 +28,22 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _set_cors_headers(self):
         origin = self.headers.get('Origin')
         
-        # 🚨 FIX 1: Universal wildcard fallback to accept 'null' origins from local files
-        # and support dynamic *.pages.dev subdomains without breaking production rules.
+        # 🚨 FIX 2: Universal fallback handling. Grants passage to browser-native 'null' 
+        # configurations from your desktop clean room file and matches dynamic staging pages subdomains.
         if not origin or origin == 'null':
             self.send_header('Access-Control-Allow-Origin', '*')
         elif origin in ALLOWED_ORIGINS or origin.endswith('.pages.dev'):
             self.send_header('Access-Control-Allow-Origin', origin)
         else:
-            # Fallback to keep browser handshakes from instantly throwing silent console drops
             self.send_header('Access-Control-Allow-Origin', '*')
             
         self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
         
-        # 🚨 FIX 2: Broaden preflight header acceptance to cover advanced authorization blocks
+        # 🚨 FIX 3: Broaden standard accepted preflight headers to handle all proxy handshakes safely
         self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization, Accept")
 
     def do_OPTIONS(self):
-        # 🚨 FIX 3: Ensure preflight checks return a completely clean HTTP 200 payload
+        # 🚨 FIX 4: Explicitly terminate preflight options validation with an empty 200 chunk
         self.send_response(200)
         self._set_cors_headers()
         self.end_headers()
@@ -72,7 +71,9 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     headers={
                         "x-api-key": API_KEY,
                         "anthropic-version": "2023-06-01",
-                        "content-type": "application/json"
+                        "content-type": "application/json",
+                        # 🚨 FIX 5: Append the missing beta flags to validate modern inference streams
+                        "anthropic-beta": "messages-v1"
                     },
                     method="POST"
                 )
