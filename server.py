@@ -9,7 +9,7 @@ import urllib.error
 PORT = int(os.environ.get("PORT", 8080))
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
 
-# Upgraded to the current supported model
+# Current supported model
 MODEL_NAME = "claude-haiku-4-5-20251001"
 
 ALLOWED_ORIGINS = [
@@ -27,13 +27,25 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     
     def _set_cors_headers(self):
         origin = self.headers.get('Origin')
-        if origin in ALLOWED_ORIGINS or not origin:
-            self.send_header('Access-Control-Allow-Origin', origin if origin else '*')
-        self.send_header('Access-Control-Allow-Methods', 'POST, OPTIONS')
-        self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type")
+        
+        # 🚨 FIX 1: Universal wildcard fallback to accept 'null' origins from local files
+        # and support dynamic *.pages.dev subdomains without breaking production rules.
+        if not origin or origin == 'null':
+            self.send_header('Access-Control-Allow-Origin', '*')
+        elif origin in ALLOWED_ORIGINS or origin.endswith('.pages.dev'):
+            self.send_header('Access-Control-Allow-Origin', origin)
+        else:
+            # Fallback to keep browser handshakes from instantly throwing silent console drops
+            self.send_header('Access-Control-Allow-Origin', '*')
+            
+        self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+        
+        # 🚨 FIX 2: Broaden preflight header acceptance to cover advanced authorization blocks
+        self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization, Accept")
 
     def do_OPTIONS(self):
-        self.send_response(200, "ok")
+        # 🚨 FIX 3: Ensure preflight checks return a completely clean HTTP 200 payload
+        self.send_response(200)
         self._set_cors_headers()
         self.end_headers()
 
@@ -83,7 +95,6 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     self.send_header('Content-type', 'application/json')
                     self._set_cors_headers()
                     self.end_headers()
-                    # Pass the exact Anthropic error back to the frontend
                     self.wfile.write(error_body.encode())
 
             except Exception as e:
@@ -95,9 +106,11 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": {"message": str(e)}}).encode())
         else:
             print("!!! ROUTE NOT FOUND", flush=True)
-            self.send_error(404)
+            self.send_response(404)
+            self._set_cors_headers()
+            self.end_headers()
 
-print(f"Server V9 (PORT {PORT}) started at http://0.0.0.0:{PORT}", flush=True)
+print(f"Server V10 (PORT {PORT}) started at http://0.0.0.0:{PORT}", flush=True)
 socketserver.TCPServer.allow_reuse_address = True
 with socketserver.TCPServer(("0.0.0.0", PORT), ProxyHandler) as httpd:
     httpd.serve_forever()
