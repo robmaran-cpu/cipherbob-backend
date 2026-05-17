@@ -9,7 +9,7 @@ import urllib.error
 PORT = int(os.environ.get("PORT", 8080))
 API_KEY = os.environ.get("ANTHROPIC_API_KEY", "YOUR_API_KEY_HERE")
 
-# 🚨 FIX 1: Updated to the correct first-party API identifier slug to resolve permission_errors
+# Clean first-party API identifier slug for stable inference routing
 MODEL_NAME = "claude-haiku-4-5"
 
 ALLOWED_ORIGINS = [
@@ -28,8 +28,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
     def _set_cors_headers(self):
         origin = self.headers.get('Origin')
         
-        # 🚨 FIX 2: Universal fallback handling. Grants passage to browser-native 'null' 
-        # configurations from your desktop clean room file and matches dynamic staging pages subdomains.
+        # Universal fallback handling: Grants passage to browser-native 'null' 
+        # configurations and seamlessly matches all dynamic staging pages subdomains.
         if not origin or origin == 'null':
             self.send_header('Access-Control-Allow-Origin', '*')
         elif origin in ALLOWED_ORIGINS or origin.endswith('.pages.dev'):
@@ -38,12 +38,10 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             
         self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
-        
-        # 🚨 FIX 3: Broaden standard accepted preflight headers to handle all proxy handshakes safely
         self.send_header("Access-Control-Allow-Headers", "X-Requested-With, Content-Type, Authorization, Accept")
 
     def do_OPTIONS(self):
-        # 🚨 FIX 4: Explicitly terminate preflight options validation with an empty 200 chunk
+        # Intercept and terminate preflight OPTIONS validations immediately with an empty 200 frame
         self.send_response(200)
         self._set_cors_headers()
         self.end_headers()
@@ -71,9 +69,8 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
                     headers={
                         "x-api-key": API_KEY,
                         "anthropic-version": "2023-06-01",
-                        "content-type": "application/json",
-                        # 🚨 FIX 5: Append the missing beta flags to validate modern inference streams
-                        "anthropic-beta": "messages-v1"
+                        "content-type": "application/json"
+                        # 🚨 REMOVED: anthropic-beta header is deleted to prevent 400 Bad Request syntax drops
                     },
                     method="POST"
                 )
@@ -111,7 +108,7 @@ class ProxyHandler(http.server.SimpleHTTPRequestHandler):
             self._set_cors_headers()
             self.end_headers()
 
-print(f"Server V10 (PORT {PORT}) started at http://0.0.0.0:{PORT}", flush=True)
+print(f"Server V11 (PORT {PORT}) started at http://0.0.0.0:{PORT}", flush=True)
 socketserver.TCPServer.allow_reuse_address = True
 with socketserver.TCPServer(("0.0.0.0", PORT), ProxyHandler) as httpd:
     httpd.serve_forever()
